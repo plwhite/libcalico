@@ -13,10 +13,10 @@
 # limitations under the License.
 
 from netaddr import IPAddress, IPNetwork
-import socket
 import json
 import logging
 from pycalico import PyCalicoError
+from pycalico.util import get_hostname
 
 _log = logging.getLogger(__name__)
 _log.addHandler(logging.NullHandler())
@@ -29,7 +29,6 @@ BLOCK_SIZE = 2 ** BLOCK_SIZE_BITS
 PREFIX_MASK = {4: (IPAddress("255.255.255.255") ^ (BLOCK_SIZE - 1)),
                6: (IPAddress("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff") ^
                    (BLOCK_SIZE - 1))}
-my_hostname = socket.gethostname()
 
 
 class AllocationBlock(object):
