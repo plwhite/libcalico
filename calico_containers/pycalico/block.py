@@ -145,7 +145,8 @@ class AllocationBlock(object):
         self.db_result.value = self.to_json()
         return self.db_result
 
-    def auto_assign(self, num, handle_id, attributes, affinity_check=True):
+    def auto_assign(self, num, handle_id, attributes,
+                    affinity_id=my_hostname, affinity_check=True):
         """
         Automatically pick and assign the given number of IP addresses.
 
@@ -164,9 +165,9 @@ class AllocationBlock(object):
         """
         assert num >= 0
 
-        if affinity_check and my_hostname != self.host_affinity:
-            raise NoHostAffinityWarning("Host affinity is %s" %
-                                        self.host_affinity)
+        if affinity_check and affinity_id != self.host_affinity:
+            raise NoHostAffinityWarning("Host affinity is %s (not %s)" %
+                                        (self.host_affinity, affinity_id))
 
         ordinals = []
         # Walk the allocations until we find enough.

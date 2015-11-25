@@ -373,9 +373,16 @@ def _handle_datastore_key(handle_id):
 
 
 class IPAMClient(BlockHandleReaderWriter):
+    """
+    An IPAM client.
+    """
+
+    def __init__(self, affinity_id=my_hostname):
+        super(IPAMClient, self).__init__()
+        self._affinity_id = affinity_id
 
     def auto_assign_ips(self, num_v4, num_v6, handle_id, attributes,
-                        pool=(None, None), hostname=my_hostname):
+                        pool=(None, None)):
         """
         Automatically pick and assign the given number of IPv4 and IPv6
         addresses.
@@ -402,17 +409,17 @@ class IPAMClient(BlockHandleReaderWriter):
         _log.info("Auto-assign %d IPv4, %d IPv6 addrs",
                   num_v4, num_v6)
         v4_address_list = self._auto_assign(4, num_v4, handle_id,
-                                            attributes, pool[0], hostname)
+                                            attributes, pool[0])
         _log.info("Auto-assigned IPv4s %s",
                   [str(addr) for addr in v4_address_list])
         v6_address_list = self._auto_assign(6, num_v6, handle_id,
-                                            attributes, pool[1], hostname)
+                                            attributes, pool[1])
         _log.info("Auto-assigned IPv6s %s",
                   [str(addr) for addr in v6_address_list])
         return v4_address_list, v6_address_list
 
     def _auto_assign(self, ip_version, num, handle_id,
-                     attributes, pool, hostname):
+                     attributes, pool):
         """
         Auto assign addresses from a specific IP version.
 
@@ -438,7 +445,7 @@ class IPAMClient(BlockHandleReaderWriter):
         """
         assert isinstance(handle_id, str) or handle_id is None
 
-        block_list = self._get_affine_blocks(hostname,
+        block_list = self._get_affine_blocks(self._affinity_id,
                                              ip_version,
                                              pool)
         block_ids = iter(block_list)
@@ -450,7 +457,7 @@ class IPAMClient(BlockHandleReaderWriter):
                 block_id = block_ids.next()
             except StopIteration:
                 _log.info("Ran out of affine blocks for %s in pool %s",
-                          hostname, pool)
+                          self._affinity_id, pool)
                 break
             ips = self._auto_assign_block(block_id,
                                           num_remaining,
@@ -466,13 +473,13 @@ class IPAMClient(BlockHandleReaderWriter):
         while num_remaining > 0 and retries > 0:
             retries -= 1
             try:
-                new_block = self._new_affine_block(hostname,
+                new_block = self._new_affine_block(self._affinity_id,
                                                    ip_version,
                                                    pool)
                 # If successful, this creates the block and registers it to us.
             except NoFreeBlocksError:
                 _log.info("Could not get new host affinity block for %s in "
-                          "pool %s", hostname, pool)
+                          "pool %s", self._affinity_id, pool)
                 break
             ips = self._auto_assign_block(new_block,
                                           num_remaining,
@@ -531,6 +538,7 @@ class IPAMClient(BlockHandleReaderWriter):
             unconfirmed_ips = block.auto_assign(num=num,
                                                 handle_id=handle_id,
                                                 attributes=attributes,
+                                                affinity_id=self._affinity_id,
                                                 affinity_check=affinity_check)
             if len(unconfirmed_ips) == 0:
                 _log.debug("Block %s is full.", block_cidr)
@@ -555,7 +563,8 @@ class IPAMClient(BlockHandleReaderWriter):
                 return unconfirmed_ips
         raise RuntimeError("Hit Max Retries.")
 
-    def assign_ip(self, address, handle_id, attributes, hostname=my_hostname):
+    def assign_ip(self, address, handle_id, attributes,
+                  hostname=None):
         """
         Assign the given address.  Throws AlreadyAssignedError if the address
         is taken.
@@ -574,6 +583,8 @@ class IPAMClient(BlockHandleReaderWriter):
         """
         assert isinstance(handle_id, str) or handle_id is None
         assert isinstance(address, IPAddress)
+        if not hostname:
+            hostname = self._affinity_id
         block_cidr = get_block_cidr_for_address(address)
 
         for _ in xrange(RETRIES):
